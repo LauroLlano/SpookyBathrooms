@@ -1,0 +1,1738 @@
+<html>
+<head>
+	<!-- <script type="text/javascript" src="js/libs/jquery/jquery-2.1.4.min.js"></script> -->
+	
+
+
+
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<title>Spooky Bathrooms!</title>
+
+	<!-- Bootstrap CSS -->
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+	<!-- Optional JavaScript -->
+	<!-- jQuery first, then Popper.js, then Bootstrap JS -->
+	<script src="https://code.jquery.com/jquery-2.1.4.min.js" crossorigin="anonymous"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+	<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+
+	<script type="text/javascript" src="js/libs/three/three.js"></script>
+	<script type="text/javascript" src="js/libs/three/MTLLoader.js"></script>
+	<script type="text/javascript" src="js/libs/three/OBJLoader.js"></script>
+	
+	<!--This script used to allow sharing in facebook. Removed from this.-->
+	<!--script type="text/javascript" src="js/mifacebook.js"></script-->
+	
+	<style>
+		@import url('https://fonts.googleapis.com/css2?family=Creepster&display=swap');
+	</style>
+	<link rel="stylesheet" href="css/main.css">
+	<link rel="icon" type="image/ico" href="assets/imgs/icon.ico">
+
+	<script type="text/javascript" src="views/Screen.js"></script>
+	<script type="text/javascript" src="js/models/User.js"></script>	
+	<script type="text/javascript" src="js/models/Game.js"></script>
+
+	<script id="shader-vs" type="x-shader/x-vertex">
+		// GLSL
+
+		
+		uniform vec3 viewVector;
+		uniform float c;
+		uniform float p;
+		varying float intensity;
+		void main() 
+		{
+		    vec3 vNormal = normalize( normalMatrix * normal );
+			vec3 vNormel = normalize( normalMatrix * viewVector );
+			intensity = pow( c - dot(vNormal, vNormel), p );
+			
+		    gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+		}
+	</script>
+	
+	<script id="shader-fs" type="x-shader/x-fragment">
+		uniform vec3 glowColor;
+		varying float intensity;
+		void main() 
+		{
+			vec3 glow = glowColor * intensity;
+		    gl_FragColor = vec4( glow, 1.0 );
+		}
+	</script>
+
+	<script type="text/javascript">
+
+	var thisUser;
+	var thisGame;
+	var topUsers=[];
+
+	var scene;
+	var camera;
+	var renderer;
+	var spotLight;
+	var spotLight2;
+
+	//obtiene el tiempo
+	var clock;
+
+	//obtiene el tiempo de la frame
+	var deltaTime;
+
+	//teclas
+	var keys = {};
+
+
+	const ROOM_NUMS=16;
+
+	var rooms=[];
+	var toilets=[];
+	var doors=[];
+	var doorPivot=[];
+	var normalGhostArray=[];
+	var playerFrame1;
+	var playerFrame2;
+	var groundBase;
+
+
+	
+	var normalGhostBase;
+
+	var bookBase;
+	var flashlightBase;
+	var paperBase;
+	var plungerBase;
+	var tvBase;
+
+	var shieldBase;
+	
+	var timeRandomized;
+
+	var numDoorsOpened;
+	var doorsOpened;
+
+
+	var isTimeRandomized;
+	var readyToOpenDoor;
+
+	var originCollision;
+	var objectsToThrow=[];
+
+	var snow, snowGeo, snowCount=500;
+
+	var particleImage;
+
+
+	var isWorldReady = [ 
+	false, false, false, false, 
+	false, false, false, false, 
+	false, false, false, false,
+	false, false];
+
+
+	var isNewScore=false;
+	$(document).ready(function() {
+
+		loadMainMenu();
+		
+		$("#scene-section").on("click","#game-start",function(){
+			$("#scene-section").children().remove();
+			loadLogin();
+		});
+
+		$("#scene-section").on("click","#btnLogin",function(e){
+			e.preventDefault();
+			prepCheckLogin();
+		});
+
+		$("#scene-section").on("click","#btnNewRegister",function(e){
+			e.preventDefault();
+			prepRegister();
+		});
+
+		$("#scene-section").on("click","#btnModalClose",function(e){
+			e.preventDefault();
+			$("#screenNotif").remove();
+		});
+
+		$("#scene-section").on("click","#btnCloseX",function(e){
+			e.preventDefault();
+			$("#screenNotif").remove();
+		});
+
+		$("#scene-section").on("click","#btnSingleGame",function(){
+			thisGame=new Game(true, false);
+			$("#scene-section").children().remove();
+			loadDifficulty();
+		});
+
+		$("#scene-section").on("click","#btnMultiGame",function(){
+			thisGame=new Game(true, true);
+			$("#scene-section").children().remove();
+			loadScene();
+		});
+
+		$("#scene-section").on("click","#btnEasy",function(){
+			thisGame.setDifficulty(1);
+			$("#scene-section").children().remove();
+			loadScene();
+		});
+
+		$("#scene-section").on("click","#btnNormal",function(){
+			thisGame.setDifficulty(2);
+			$("#scene-section").children().remove();
+			loadScene();
+		});
+
+		$("#scene-section").on("click","#btnHard",function(){
+			thisGame.setDifficulty(3);
+			$("#scene-section").children().remove();
+			loadScene();
+		});
+
+		$("#scene-section").on("click","#pauseContinue",function(){
+			pauseGame=false;
+		});
+
+		$("#scene-section").on("click","#btnShareScore",function(){
+			shareFB();
+		});
+
+		$("#scene-section").on("click","#btnShowTopPlayers",function(){
+			$("#scene-section").children().remove();
+			bringTopPlayers();
+		});
+
+		$("#scene-section").on("click","#btnExitGame",function(){
+			$("#scene-section").children().remove();
+			topUsers.splice(0, topUsers.length);
+			loadPlayerSelect();
+		});
+			
+		document.addEventListener('keydown', onKeyDown);
+		document.addEventListener('keyup', onKeyUp);	
+	});
+
+
+	function prepCheckLogin(){
+		var getUser=$('#loginUser').val();
+		var getPass=$('#loginPass').val();
+		var optionUse="login";
+		if(getUser!=null&&getPass!=null)
+		{
+			if(getUser!=""&&getPass!="")
+			{
+				var data={ 
+					action: optionUse,
+					user: getUser, 
+					pass: getPass
+				};
+				callAjax(data, "webservice/webservice.php");
+			}
+			else
+			{
+				var answer=[
+					"LOGIN-EMPTY",
+					"Llene los campos de usuario y contraseña para ingresar"
+				];
+				responseCheck(answer);
+			}
+		}
+	}
+
+	function prepCheckNewScore(score){
+
+		if(thisUser.isNewScore(score)){
+			thisUser.setScore(score);
+
+			var getUser=thisUser.getUser();
+			var getScore=thisUser.getScore();
+			var optionUse="checkScore";
+
+			var data={ 
+				action: optionUse,
+				user: getUser, 
+				score: getScore
+			};
+			callAjax(data, "webservice/webservice.php");
+		}
+		else
+		{
+			isNewScore=false;
+			loadScore();
+		}	
+	}
+
+	function bringTopPlayers()
+	{
+		var checkUser=thisUser.getUser();
+		var checkScore=thisUser.getScore();
+		var optionToUse="getRecords";
+		var data2={ 
+			action: optionToUse,
+			user: checkUser, 
+			score: checkScore
+		};
+		callAjax(data2, "webservice/webservice.php");
+	}
+
+	function prepRegister(){
+		var getUser=$('#loginUser').val();
+		var getPass=$('#loginPass').val();
+		var optionUse="signup";
+		if(getUser!=null&&getPass!=null)
+		{
+			if(getUser!=""&&getPass!="")
+			{
+				var data={ 
+					action: optionUse,
+					user: getUser, 
+					pass: getPass
+				};
+				callAjax(data, "webservice/webservice.php");
+			}
+			else
+			{
+				var answer=[
+					"SIGNUP-EMPTY",
+					"Llene los campos de usuario y contraseña para registrarse"
+				];
+				responseCheck(answer);
+			}
+		}
+	}
+
+	function callAjax(dataToSend, useUrl){
+		$.ajax({
+			url: useUrl,
+			async:true,
+			type: 'POST',
+			data: dataToSend,
+			dataType: 'json',
+			success: function(data){
+				responseCheck(data);
+			},
+			error:function(x,y,z){
+				alert("Error en webservice: " +x+y+z);
+			}
+		});
+	}
+
+	function responseCheck(response){
+		var getAnswer = response[0];
+		var infoRetrieved=response[1];
+		var getNotifType="ERROR";
+		var getNotifAnswer="Hubo un problema al cargar la respuesta del servidor a la página, intente más tarde.";
+		var newUser=new User("Hola", 0);
+		if(getAnswer=="LOGIN-SUCCESS")
+		{
+			if($("#loginKeepUser").is(":checked"))
+			{
+				var saveInfo={
+					user: $("#loginUser").val(),
+					pass: $("#loginPass").val()
+				};
+				localStorage.setItem("userSaved", JSON.stringify(saveInfo));
+			}
+			else
+			{
+				localStorage.removeItem("userSaved");
+			}
+			
+			$("#scene-section").children().remove();
+			thisUser= new User(infoRetrieved[0].user, infoRetrieved[0].score);
+			loadPlayerSelect();
+			return;
+		}
+		else if(getAnswer=="SIGNUP-SUCCESS")
+		{
+			if($("#loginKeepUser").is(":checked"))
+			{
+				var saveInfo={
+					user: $("#loginUser").val(),
+					pass: $("#loginPass").val()
+				};
+				localStorage.setItem("userSaved", JSON.stringify(saveInfo));
+			}
+			else
+			{
+				localStorage.removeItem("userSaved");
+			}
+
+			$("#scene-section").children().remove();
+			thisUser= new User(infoRetrieved.user, infoRetrieved.score);
+			loadPlayerSelect();
+			getNotifType="INFORMACIÓN";
+			getNotifAnswer="Usuario creado exitosamente";
+		}
+		else if(getAnswer=="LOGIN-DENIED"||getAnswer=="SIGNUP-DENIED"||getAnswer=="LOGIN-EMPTY"||getAnswer=="SIGNUP-EMPTY")
+		{
+			getNotifType="AVISO";
+			getNotifAnswer=infoRetrieved;
+		}
+		else if (getAnswer=="LOGIN-ERROR"||getAnswer=="SIGNUP-ERROR"||getAnswer=="GLOBALSCORE-ERROR")
+		{
+			getNotifType="ERROR";
+			getNotifAnswer=infoRetrieved;
+		}
+		else if(getAnswer=="MYSCORE-NEWSCORE")
+		{
+			if(infoRetrieved=="TRUE")
+			{
+				isNewScore=true;
+			}
+			else if (infoRetrieved=="FALSE")
+			{
+				isNewScore=false;
+			}
+			
+			loadScore();
+			return;
+		}
+		else if(getAnswer=="GLOBALSCORE-SUCCESS")
+		{
+			for(var i=0; i<infoRetrieved.length; i++)
+			{
+				topUsers.push(new User(infoRetrieved[i].user, infoRetrieved[i].score));
+			}
+			loadTopPlayers();
+			return;			
+		}
+		else if(getAnswer=="SERVER-ERROR")
+		{
+			getNotifType="ERROR";
+			getNotifAnswer=infoRetrieved;
+		}
+
+		loadNotif(getNotifType, getNotifAnswer);
+	}
+
+
+	function loadNotif(notifType, notifText){
+		var html=Screen.notification(notifType, notifText);
+		$("#scene-section").append(html);
+		$("#screenNotif").modal();
+	}
+
+	function loadMainMenu(){
+		var html=Screen.mainScreen();
+		$("#scene-section").append(html);
+	}
+
+	function loadLogin(){
+		var html=Screen.loginScreen();
+		$("#scene-section").append(html);
+
+		var dataSaved=JSON.parse(localStorage.getItem("userSaved"));
+
+		if(dataSaved!=null)
+		{
+			$("#loginUser").val(dataSaved.user);
+			$("#loginPass").val(dataSaved.pass);
+			$("#loginKeepUser").prop('checked', true);
+		}
+			
+		
+	}
+
+	function loadPlayerSelect(){
+		var html=Screen.playerSelectScreen();
+		$("#scene-section").append(html);
+	}
+	
+	function loadDifficulty(){
+		var html=Screen.playerDifficultyScreen();
+		$("#scene-section").append(html);
+	}
+
+	function loadPause(){
+		var html=Screen.pauseScreen();
+		$("#scene-section").append(html);
+	}
+
+	function loadScore()
+	{
+		$("#scene-section").children().remove();
+		var html=Screen.resultScreen(isNewScore, thisGame.checkScore(), showResultScreen());
+		$("#scene-section").append(html);
+	}
+
+	function loadTopPlayers()
+	{
+		var html=Screen.topPlayersScreen(topUsers);
+		$("#scene-section").append(html);
+		
+	}
+
+	function shareFB() {
+		var score = thisGame.checkScore();
+		//This used to be where you could share your score in facebook, but I'd rather not have in
+		//shareScore(score);
+	}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////WEBGL/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+	function loadScene(){
+		setupScene();
+
+		camera.boundingBox={
+			minX: -2,
+			minY: -2,
+			minZ: -2,
+			maxX: 2,
+			maxY: 2,
+			maxZ: 2
+		}
+
+
+		loadOBJWithMTL("assets/meshes/room/", "cuarto.obj", "cuarto.mtl", (object) => {
+			object.position.z = 20;
+			object.position.y=15;
+			object.position.x=-15;
+			
+			object.scale.x=object.scale.y=object.scale.z=0.5;
+
+			for(var i=0; i<ROOM_NUMS; i++)
+			{
+
+				if(i==4||i==8||i==12){
+					object.position.y-=9;
+					object.position.x=-15;
+				}
+				//object.lookAt(camera.position);
+				rooms.push(object.clone());
+				object.position.x+=10;
+			}
+
+			for(var i=0; i<ROOM_NUMS; i++){
+				rooms[i].isDoorOpening=false;
+				rooms[i].isDoorOpen=false;
+				rooms[i].timeLeft=0;
+				rooms[i].isDoorClosing=false;
+				scene.add(rooms[i]);
+			}
+			
+
+			isWorldReady[0] = true;
+
+			loadOBJWithMTL("assets/meshes/toilet/", "toilet.obj", "toilet.mtl", (object) => {
+				object.position.z=-9;
+
+				for(var i=0; i<ROOM_NUMS; i++)
+				{
+					toilets.push(object.clone());
+					
+				}
+
+				for(var i=0; i<ROOM_NUMS; i++){
+					
+					scene.add(toilets[i]);
+					rooms[i].add(toilets[i]);
+				}
+				
+				isWorldReady[1] = true;
+	
+			});
+
+			loadOBJWithMTL("assets/meshes/door/", "door.obj", "door.mtl", (object) => {		
+				object.position.x=-3;
+				for(var i=0; i<ROOM_NUMS; i++)
+				{
+					doorPivot.push(new THREE.Object3D());
+					doorPivot[i].position.x=3;
+					
+					
+					doors.push(object.clone());
+					scene.add(doorPivot[i]);
+				}
+
+				for(var i=0; i<ROOM_NUMS; i++){
+					//scene.add(doors[i]);
+					doorPivot[i].add(doors[i]);
+					rooms[i].add(doorPivot[i]);
+				}
+				isWorldReady[2] = true;
+			});
+
+			loadOBJWithMTL("assets/meshes/frameP1/", "frameP1.obj", "frameP1.mtl", (object) => {
+				object.position.z=rooms[0].position.z;
+				object.position.x=rooms[0].position.x;
+				object.position.y=rooms[0].position.y;
+				object.scale.x=object.scale.y=object.scale.z=0.5;
+				object.lookAt(camera.position);
+
+				playerFrame1=object.clone();
+
+				var glowMaterial = new THREE.ShaderMaterial( 
+					{
+					    uniforms: 
+						{ 
+							"c":   { type: "f", value: 1.0 },
+							"p":   { type: "f", value: 1.4 },
+							glowColor: { type: "c", value: new THREE.Color(0xffffff) },
+							viewVector: { type: "v3", value: camera.position }
+						},
+						vertexShader:   document.getElementById('shader-vs').textContent,
+						fragmentShader: document.getElementById('shader-fs').textContent,
+						side: THREE.FrontSide,
+						blending: THREE.AdditiveBlending,
+						transparent: true
+					}   );
+					
+				glowMaterial.needsUpdate = true	
+
+				var moonGeometry=new THREE.SphereGeometry(2, 20, 20);
+				var materialMoon = new THREE.MeshLambertMaterial({
+					color: new THREE.Color(0.9,0.9, 0.9)
+				});
+
+				var moon=new THREE.Mesh(moonGeometry, materialMoon);
+				moon.position.y=20;
+				moon.position.x=20;
+				moon.position.z=0;
+				var glowMesh = new THREE.Mesh(moonGeometry, glowMaterial.clone() );
+				  	glowMesh.position = moon.position;
+					glowMesh.scale.multiplyScalar(1.2);
+					moon.add(glowMesh);
+					scene.add( moon );
+
+				scene.add(playerFrame1);
+				isWorldReady[10] = true;
+			});
+
+			if(thisGame.getDifficulty()==4)
+			{
+				loadOBJWithMTL("assets/meshes/frameP2/", "frameP2.obj", "frameP2.mtl", (object) => {
+					object.position.z=rooms[0].position.z;
+					object.position.x=rooms[0].position.x;
+					object.position.y=rooms[0].position.y;
+					object.scale.x=object.scale.y=object.scale.z=0.55;
+					object.lookAt(camera.position);
+
+					playerFrame2=object.clone();
+					scene.add(playerFrame2);
+					isWorldReady[11] = true;
+				});
+			}
+			else
+			{
+				isWorldReady[11] = true;
+			}
+		});
+
+		loadOBJWithMTL("assets/meshes/normalGhost/", "normalGhost.obj", "normalGhost.mtl", (object) => {
+			object.position.y=5;
+			object.asleep=false;
+			normalGhostBase=object.clone();
+			isWorldReady[3] = true;
+		});
+
+
+		loadOBJWithMTL("assets/meshes/book/", "book.obj", "book.mtl", (object) => {
+			object.scale.x=object.scale.y=object.scale.z=0.5;
+			bookBase=object.clone();
+			isWorldReady[4] = true;
+		});
+
+		loadOBJWithMTL("assets/meshes/flashlight/", "flashlight.obj", "flashlight.mtl", (object) => {
+			object.scale.x=object.scale.y=object.scale.z=0.25;
+			object.rotation.y = THREE.Math.degToRad(-90);
+
+			flashlightBase=object.clone();
+			isWorldReady[5] = true;
+		});
+				
+		loadOBJWithMTL("assets/meshes/paper/", "paper.obj", "paper.mtl", (object) => {
+			object.scale.x=object.scale.y=object.scale.z=0.5;
+			object.rotation.x = THREE.Math.degToRad(0);
+
+			paperBase=object.clone();
+			isWorldReady[6] = true;
+		});
+
+		loadOBJWithMTL("assets/meshes/plunger/", "plunger.obj", "plunger.mtl", (object) => {
+			object.scale.x=object.scale.y=object.scale.z=0.5;
+			object.rotation.x = THREE.Math.degToRad(0);
+
+			plungerBase=object.clone();
+			isWorldReady[7] = true;
+		});
+
+		loadOBJWithMTL("assets/meshes/tv/", "tv.obj", "tv.mtl", (object) => {
+			object.scale.x=object.scale.y=object.scale.z=0.5;
+			object.rotation.x = THREE.Math.degToRad(0);
+			tvBase=object.clone();
+			isWorldReady[8] = true;
+		});
+
+		loadOBJWithMTL("assets/meshes/shield/", "shield.obj", "shield.mtl", (object) => {
+			object.scale.x=object.scale.y=object.scale.z=0.3;
+			object.position.z=camera.position.z-1;
+			object.position.y=camera.position.y-2.5;
+			object.position.x=0;
+
+			shieldInitialPosition=new THREE.Vector3(object.position.x, camera.position.y-2.5, object.position.z);
+			shieldDesiredPosition=new THREE.Vector3(object.position.x, camera.position.y-1.3, object.position.z);
+
+			shieldBase=object.clone();
+
+			scene.add(shieldBase);
+			isWorldReady[9] = true;
+		});
+
+		loadOBJWithMTL("assets/meshes/ground/", "ground.obj", "ground.mtl", (object) => {
+			object.scale.x=object.scale.y=object.scale.z=5;
+			object.position.z=25;
+			object.position.y=-23;
+			object.position.x=0;
+
+			groundBase=object.clone();
+
+			scene.add(groundBase);
+			isWorldReady[12] = true;
+		});
+
+		createParticles();
+		
+		render();		
+	}
+
+	function loadOBJWithMTL(path, objFile, mtlFile, onLoadCallback) {
+		var mtlLoader = new THREE.MTLLoader();
+		mtlLoader.setPath(path);
+		mtlLoader.load(mtlFile, (materials) => {
+			
+			var objLoader = new THREE.OBJLoader();
+			objLoader.setMaterials(materials);
+			objLoader.setPath(path);
+			objLoader.load(objFile, (object) => {
+				onLoadCallback(object);
+			});
+
+		});
+	}
+
+	function onKeyDown(event){
+		keys[String.fromCharCode(event.keyCode)] = true;
+	}
+
+	function onKeyUp(event) {
+		keys[String.fromCharCode(event.keyCode)] = false;
+	}
+
+	var goingDown;
+	function ghostsFloat(){
+		for(var i=0; i<numDoorsOpened; i++)
+		{
+			if(rooms[doorsOpened[i]].isDoorOpening||rooms[doorsOpened[i]].isDoorClosing||rooms[doorsOpened[i]].isDoorOpen)
+			{
+				if(normalGhostArray[doorsOpened[i]].position.y>=7)
+					goingDown=true;
+				else if(normalGhostArray[doorsOpened[i]].position.y<=2)	
+					goingDown=false;
+
+				if(goingDown)
+					normalGhostArray[doorsOpened[i]].position.y-=5*deltaTime;
+				else
+					normalGhostArray[doorsOpened[i]].position.y+=5*deltaTime;
+			}
+		}
+	}
+
+	//If door is not open, start opening door
+	function startOpenDoor(index){
+		if(rooms[index].isDoorOpen || rooms[index].isDoorOpening || rooms[index].isDoorClosing)
+		{
+			return;
+		}
+
+		rooms[index].isDoorOpening=true;
+	}
+
+	function randomizeWaitTime(min, max)
+	{
+		var randomnumber = Math.floor(Math.random() * (max - min + 1)) + min;
+		timeRandomized=randomnumber;
+		isTimeRandomized=true;
+	}
+
+	//If the door that I'm about to put in the array is already in there, don't put it in
+	function checkIfDoorAlreadyOpen(roomToCheck){
+		var alreadyTaken=false;
+		for(var i=0; i<numDoorsOpened && !alreadyTaken; i++)
+		{
+			if(doorsOpened[i]==roomToCheck)
+			{
+				alreadyTaken=true;
+			}
+		}
+		return alreadyTaken;
+	}
+
+	//When I open a door, I have to know which door is open
+	function addOpenDoors(addRoom){
+		if(numDoorsOpened<thisGame.getDifficulty()){
+			var foundDoor=false;		
+			if(!checkIfDoorAlreadyOpen(addRoom)){
+				for(var i=0; i<thisGame.getDifficulty() && !foundDoor; i++)
+				{
+					if(doorsOpened[i]==-1)
+					{
+						doorsOpened[i]=addRoom;
+						numDoorsOpened+=1;
+						foundDoor=true;
+						canShowGhost(addRoom);
+					}
+				}
+			}
+		}
+	}
+
+
+	function randomizeDoor(){
+		if(numDoorsOpened<thisGame.getDifficulty()){
+			var foundDoor=false;
+			while(!foundDoor)
+			{
+				var randomRoom = Math.floor(Math.random() * 16);
+
+				if(!checkIfDoorAlreadyOpen(randomRoom)) 
+				{
+					addOpenDoors(randomRoom);
+					startOpenDoor(randomRoom);
+					readyToOpenDoor=false;
+					isTimeRandomized=false;
+					foundDoor=true;
+				}
+			}
+			
+		}
+	}
+
+	function getRandomMesh(){
+		var randomnumber = Math.floor(Math.random() * (5- 1 + 1)) + 1;
+		switch (randomnumber) {
+                case 1:
+                	return bookBase.clone();
+                break;
+                case 2:
+                	return flashlightBase.clone();
+                break;
+                case 3:
+                	return paperBase.clone();
+                break;
+                case 4:
+                	return plungerBase.clone();
+                break;
+                case 5:
+                	return tvBase.clone();
+                break;
+                default:
+                	return bookBase.clone();
+            }
+	}
+
+	function playerSawGhost(index){
+		if(rooms[index].isDoorOpen)
+		{
+			if(objectsToThrow[index]==null)
+			{
+				objectsToThrow[index]=getRandomMesh();
+
+				objectsToThrow[index].position=rooms[index].position;
+				objectsToThrow[index].position.x=rooms[index].position.x;
+				objectsToThrow[index].position.y=rooms[index].position.y;
+				objectsToThrow[index].position.z=rooms[index].position.z;
+
+				objectsToThrow[index].getInterpolation=0;
+				objectsToThrow[index].boundingBox={
+						minX:-2,
+						minY:-2,
+						minZ:-2,
+						maxX:2,
+						maxY:2,
+						maxZ:2
+				}
+
+				objectsToThrow[index].lookAt(camera.position);
+				scene.add(objectsToThrow[index]);
+				rooms[index].isDoorClosing=true;
+				rooms[index].isDoorOpen=false;
+
+			}
+		}
+	}
+
+	//Throw object to player
+	function throwObject(){
+		var vectorPosition=new THREE.Vector3(0,0,0);
+		var prepareNewPosition=new THREE.Vector3(camera.position.x, camera.position.y-2, camera.position.z);
+		var lerpTotalMovement=4/thisGame.getDifficulty();
+		for(var i=0; i<ROOM_NUMS;i++)
+		{
+			if(objectsToThrow[i]!=null)
+			{
+
+				vectorPosition=vectorPosition.lerpVectors(rooms[i].position, prepareNewPosition, objectsToThrow[i].getInterpolation/lerpTotalMovement);
+				objectsToThrow[i].getInterpolation+=deltaTime;
+
+				objectsToThrow[i].position.x=vectorPosition.x;
+				objectsToThrow[i].position.y=vectorPosition.y;
+				objectsToThrow[i].position.z=vectorPosition.z;
+				objectsToThrow[i].lookAt(camera.position);
+
+				var meshCollision={
+					minX: objectsToThrow[i].boundingBox.minX+objectsToThrow[i].position.x,
+					minY: objectsToThrow[i].boundingBox.minY+objectsToThrow[i].position.y,
+					minZ: objectsToThrow[i].boundingBox.minZ+objectsToThrow[i].position.z,
+					maxX: objectsToThrow[i].boundingBox.maxX+objectsToThrow[i].position.x,
+					maxY: objectsToThrow[i].boundingBox.maxY+objectsToThrow[i].position.y,
+					maxZ: objectsToThrow[i].boundingBox.maxZ+objectsToThrow[i].position.z
+				}
+				
+				if(intersect(originCollision, meshCollision))
+				{
+					scene.remove(objectsToThrow[i]);
+
+					objectsToThrow[i]=null;
+					var infoShield=thisGame.getShieldInfo();
+
+					if(infoShield.isUp==false)
+						thisGame.getHit();
+
+				}
+			}
+		}
+	}
+
+	//Check if object is colliding with player
+	function intersect(a, b) {
+	  return (a.minX <= b.maxX && a.maxX >= b.minX) &&
+	         (a.minY <= b.maxY && a.maxY >= b.minY) &&
+	         (a.minZ <= b.maxZ && a.maxZ >= b.minZ);
+	}
+
+	//When door is opening up
+	function openingDoors(){
+		for(var i=0; i<numDoorsOpened; i++)
+		{
+			if(rooms[doorsOpened[i]].isDoorOpening)
+			{
+				if(doorPivot[doorsOpened[i]].rotation.y>=THREE.Math.degToRad(90))
+				{
+					rooms[doorsOpened[i]].isDoorOpening=false;
+					rooms[doorsOpened[i]].isDoorOpen=true;
+					rooms[doorsOpened[i]].timeLeft=timeRandomized;
+				}
+				else
+				{
+					doorPivot[doorsOpened[i]].rotation.y+=THREE.Math.degToRad(60*deltaTime);
+				}
+			}
+		}
+	}
+
+	//When door is completely open
+	function openedDoors(){
+		for(var i=0; i<numDoorsOpened; i++)
+		{
+			if(rooms[doorsOpened[i]].isDoorOpen)
+			{
+				if(rooms[doorsOpened[i]].timeLeft>=0)
+				{
+					rooms[doorsOpened[i]].timeLeft-=deltaTime;
+				}
+				else
+				{
+					rooms[doorsOpened[i]].isDoorClosing=true;
+					rooms[doorsOpened[i]].isDoorOpen=false;
+				}
+			}
+		}
+	}
+
+	//When door is starting to close
+	function closingDoors(){
+		for(var i=0; i<numDoorsOpened; i++)
+		{
+			if(rooms[doorsOpened[i]].isDoorClosing)
+			{
+				if(doorPivot[doorsOpened[i]].rotation.y<=THREE.Math.degToRad(0))
+				{
+					rooms[doorsOpened[i]].isDoorOpening=false;
+					rooms[doorsOpened[i]].isDoorOpen=false;
+					rooms[doorsOpened[i]].isDoorClosing=false;
+					rooms[doorsOpened[i]].timeLeft=0;
+
+					toilets[doorsOpened[i]].remove( normalGhostArray[doorsOpened[i]]);
+					scene.remove( normalGhostArray[doorsOpened[i]]);
+
+					normalGhostArray[doorsOpened[i]]=null;
+
+					doorsOpened[i]=-1;
+					doorsOpened.splice(i, 1);
+					doorsOpened.push(-1);
+					numDoorsOpened-=1;
+				}
+				else
+				{
+					doorPivot[doorsOpened[i]].rotation.y-=THREE.Math.degToRad(60*deltaTime);
+				}
+			}
+		}
+	}
+
+	//Can player 1 close the door right now?
+	function ableToClose(index){
+		if(rooms[index].isDoorOpen||rooms[index].isDoorClosing)
+			return false;
+
+		if(rooms[index].isDoorOpening)
+			return true;
+
+		return false;
+	}
+
+	//Player 1
+	function closeDoor(index){
+		rooms[index].isDoorOpen=false;
+		rooms[index].isDoorClosing=true;
+		rooms[index].isDoorOpening=false;
+		thisGame.playerClosedDoor();
+		console.log(thisGame.checkScore());
+	}
+
+	//Si una de las puertas se está abriendo, debo instanciar ese objeto
+	function canShowGhost(index){
+		if(normalGhostArray[index]==null)
+		{
+			normalGhostArray[index]=normalGhostBase.clone();
+			scene.add(normalGhostArray[index]);
+			toilets[index].add(normalGhostArray[index]);
+			var randomnumber = Math.floor(Math.random() * (7 - 2 + 1)) + 2;
+			normalGhostArray[index].position.y=randomnumber;
+		}
+	}
+
+	function createParticles()
+	{
+		var snowMaterial = new THREE.PointsMaterial({
+				size:2,
+		      	blending: THREE.AdditiveBlending,
+		      	map: new THREE.TextureLoader().load("./assets/imgs/snowPart.png"),
+		      	transparent: true,
+		      	depthWrite: false
+		    });
+
+		snowGeo=new THREE.Geometry();
+
+		for(var i=0; i<snowCount; i++)
+		{
+			snowDrop=new THREE.Vector3(
+				Math.random()*100-50,
+				Math.random()*100-130,
+				Math.random()*50-25
+				);
+			snowDrop.velocity={};
+			snowDrop.velocity=0;
+
+			snowGeo.vertices.push(snowDrop)
+		}	
+
+		snow=new THREE.Points(snowGeo, snowMaterial);
+		scene.add(snow);
+
+		snow.position.z=25;
+		isWorldReady[13] = true;
+	}
+
+	var changeState;
+
+	function emmitParticles()
+	{
+		snowGeo.vertices.forEach(p=>{
+			p.velocity-=Math.random()*(0.0001*deltaTime)+0.0001;
+			p.y+=p.velocity;
+			if(p.y<-150){
+				p.y=100;
+				p.velocity=0;
+			}
+
+		});
+		snowGeo.verticesNeedUpdate=true;
+	}
+
+
+	
+	var timeElapsed1;
+	var timeElapsed2;
+
+	function movePlayer(playerControl, index, t){
+		var lerpDuration=0.3;
+		if(playerControl==1)
+		{
+			if(playerFrame1.position.equals(rooms[index].position))
+			{
+				timeElapsed1=0;
+				thisGame.setPlaced(1);
+				playerSawGhost(thisGame.getPlayerPosition(1));
+				return;
+			}
+			if(timeElapsed1<lerpDuration){
+				playerFrame1.position.lerp(rooms[index].position, timeElapsed1/lerpDuration);
+				timeElapsed1+=t;
+			}
+			else
+			{
+				playerFrame1.position.x=rooms[index].position.x;
+				playerFrame1.position.y=rooms[index].position.y;
+				playerFrame1.position.z=rooms[index].position.z;
+			}
+			
+			playerFrame1.lookAt(camera.position);
+			
+		}
+		else if(playerControl==2)
+		{
+			if(playerFrame2.position.equals(rooms[index].position))
+			{
+				timeElapsed2=0;
+				thisGame.setPlaced(2);
+				return;
+			}
+			if(timeElapsed2<lerpDuration){
+				playerFrame2.position.lerp(rooms[index].position, timeElapsed2/lerpDuration);
+				timeElapsed2+=t;
+			}
+			else
+			{
+				playerFrame2.position.x=rooms[index].position.x;
+				playerFrame2.position.y=rooms[index].position.y;
+				playerFrame2.position.z=rooms[index].position.z;
+			}
+			
+			playerFrame2.lookAt(camera.position);
+		}	
+	}
+
+	//Giro todos los cuartos en mi dirección
+	function initialLoad(){
+		for(var i=0; i<ROOM_NUMS; i++)
+		{
+			rooms[i].lookAt(camera.position);
+			
+		}
+		originCollision={
+			minX: camera.boundingBox.minX+camera.position.x,
+			minY: camera.boundingBox.minY+camera.position.y-2,
+			minZ: camera.boundingBox.minZ+camera.position.z,
+			maxX: camera.boundingBox.maxX+camera.position.x,
+			maxY: camera.boundingBox.maxY+camera.position.y-2,
+			maxZ: camera.boundingBox.maxZ+camera.position.z
+		}
+		timeRandomized=thisGame.getDifficulty()*1.5;
+		numDoorsOpened=0;
+		doorsOpened=[-1,-1,-1, -1];
+		isTimeRandomized=false;
+		readyToOpenDoor=false;
+
+		objectsToThrow=[
+			null, null, null, null, 
+			null, null, null, null, 
+			null, null, null, null, 
+			null, null, null, null];
+
+		normalGhostArray=[
+			null, null, null, null,
+			null, null, null, null, 
+			null, null, null, null, 
+			null, null, null, null];
+
+		shieldElapsed1=0.0;
+		shieldElapsed2=0.0;
+
+		pauseGame=false;
+ 		lastState=false;
+
+ 		timeElapsed1=0.0;
+		timeElapsed2=0.0;
+
+
+		goingDown=false;
+
+		spotLight.target=playerFrame1;
+
+		if(thisGame.getDifficulty()==4)
+		{
+			spotLight2.target=playerFrame2;
+		}
+
+		isLoaded=true;
+	}
+	
+	function keyControls(){
+		//Put ShieldUp
+		var infoShield=thisGame.getShieldInfo();
+		if(keys["Q"])
+		{
+			if(!infoShield.gettingUp&&!infoShield.isUp&&!infoShield.gettingDown){
+				if(thisGame.isPlayerStill(1)){
+					thisGame.gettingShieldUp();
+				}
+			}
+			
+		}
+		infoShield=thisGame.getShieldInfo();
+		if(infoShield.gettingUp==false&&infoShield.isUp==false&&infoShield.gettingDown==false)
+		{
+			//Move cursor
+			if (keys["A"]) {
+				if(thisGame.isPlayerStill(1)){
+					thisGame.changingPlace(1);
+					thisGame.moveLeft(1);
+
+				}
+			} else if (keys["D"]) {
+				if(thisGame.isPlayerStill(1)){
+					thisGame.changingPlace(1);
+					thisGame.moveRight(1);
+				}
+			}
+			if (keys["W"]) {
+				if(thisGame.isPlayerStill(1)){
+					thisGame.changingPlace(1);
+					thisGame.moveUp(1);
+				}
+			} else if (keys["S"]) {
+				if(thisGame.isPlayerStill(1)){
+					thisGame.changingPlace(1);
+					thisGame.moveDown(1);
+				}
+			}
+
+			//Close door
+			if(keys["E"])
+			{
+				if(thisGame.isPlayerStill(1)){
+					var actualIndex=thisGame.getPlayerPosition(1);
+					if(ableToClose(actualIndex)){
+						closeDoor(actualIndex);
+						console.log("He entrado");
+					}
+
+				}
+			}
+		}
+		
+
+
+		if(thisGame.getDifficulty()==4)
+		{
+			if (keys["J"]) {
+				if(thisGame.isPlayerStill(2)){
+					thisGame.changingPlace(2);
+					thisGame.moveLeft(2);
+				}
+			} else if (keys["L"]) {
+				if(thisGame.isPlayerStill(2)){
+					thisGame.changingPlace(2);
+					thisGame.moveRight(2);
+				}
+			}
+			if (keys["I"]) {
+				if(thisGame.isPlayerStill(2)){
+					thisGame.changingPlace(2);
+					thisGame.moveUp(2);
+				}
+			} else if (keys["K"]) {
+				if(thisGame.isPlayerStill(2)){
+					thisGame.changingPlace(2);
+					thisGame.moveDown(2);
+				}
+			}
+
+			if (keys["O"]) {
+				if(thisGame.isPlayerStill(2)){
+					addOpenDoors(thisGame.getPlayerPosition(2));
+					startOpenDoor(thisGame.getPlayerPosition(2));
+				}
+			}
+		}
+	}	
+
+	var shieldElapsed1;
+	var shieldElapsed2;
+
+	var shieldInitialPosition;
+	var shieldDesiredPosition;
+	//Animate shield up
+	function puttingShieldUp(){
+		var lerpDuration=0.5;
+		var shieldActualPosition= new THREE.Vector3(0,0,0);
+		if(shieldBase.position.equals(shieldDesiredPosition))
+		{
+			shieldElapsed1=0;
+			thisGame.putShieldUp();
+			return;
+		}
+
+		if(shieldElapsed1<lerpDuration){
+			shieldActualPosition.lerpVectors(shieldInitialPosition, shieldDesiredPosition, shieldElapsed1/lerpDuration);
+
+			shieldBase.position.x=shieldActualPosition.x;
+			shieldBase.position.y=shieldActualPosition.y;
+			shieldBase.position.z=shieldActualPosition.z;
+			shieldElapsed1+=deltaTime;
+		}
+		else
+		{
+			shieldBase.position.x=shieldDesiredPosition.x;
+			shieldBase.position.y=shieldDesiredPosition.y;
+			shieldBase.position.z=shieldDesiredPosition.z;
+		}
+	}
+
+	//Animate shield down
+	function puttingShieldDown(){
+		var lerpDuration=0.5;
+		var shieldActualPosition= new THREE.Vector3(0,0,0);
+		if(shieldBase.position.equals(shieldInitialPosition))
+		{
+			shieldElapsed2=0;
+			thisGame.putShieldDown();
+			return;
+		}
+
+		if(shieldElapsed2<lerpDuration){
+			shieldActualPosition.lerpVectors(shieldDesiredPosition, shieldInitialPosition, shieldElapsed2/lerpDuration);
+
+			shieldBase.position.x=shieldActualPosition.x;
+			shieldBase.position.y=shieldActualPosition.y;
+			shieldBase.position.z=shieldActualPosition.z;
+			shieldElapsed2+=deltaTime;
+		}
+		else
+		{
+			shieldBase.position.x=shieldInitialPosition.x;
+			shieldBase.position.y=shieldInitialPosition.y;
+			shieldBase.position.z=shieldInitialPosition.z;
+		}
+	}
+
+	var isLoaded=false;
+	var pauseGame=false;
+	var lastState=false;
+	var gameFinished=false;
+
+	var idFrame;
+	function render() {
+
+		var yaw = 0;
+		var forward = 0;
+		var up=0;
+
+
+		idFrame=requestAnimationFrame(render);
+		deltaTime = clock.getDelta();
+
+	
+		//Pausa
+		if(!keys["M"]){
+			if(keys["Z"]){
+				if(!lastState){
+					pauseGame=!pauseGame;
+					lastState=true;
+				}
+			}
+			else{
+				lastState=false;
+			}
+		}
+		
+
+		if(thisGame.getDifficulty()==4)
+		{
+			if(!keys["Z"]){
+				if(keys["M"]){
+					if(!lastState){
+						pauseGame=!pauseGame;
+						lastState=true;
+					}
+				}
+				else{
+					lastState=false;
+				}
+			}
+			
+		}
+		
+
+		
+		if (isWorldReady[0] && isWorldReady[1] &&isWorldReady[2]&&isWorldReady[3]
+			&&isWorldReady[4]&&isWorldReady[5]&&isWorldReady[6]&&isWorldReady[7]
+			&&isWorldReady[8]&&isWorldReady[9]&&isWorldReady[10]&&isWorldReady[11]
+			&&isWorldReady[12]&&isWorldReady[13]) 
+		{
+
+			if(!isLoaded){
+				initialLoad();
+			}
+
+			if(!pauseGame&&isLoaded)
+			{
+				thisGame.reduceTime(deltaTime);
+
+				if(thisGame.getTime()<0||thisGame.checkHealth()<=0)
+				{
+					$("#gameLife").text("Vida: "+thisGame.checkHealth());
+					gameFinished=true;
+				}
+				else
+				{
+					gameFinished=false;
+				}
+
+				if(!gameFinished)
+				{
+					keyControls();
+	
+					// if(keys["R"]){
+					// 	up=1;
+					// }
+					// if(keys["Y"]){
+					// 	up=-1;
+					// }
+					// if (keys["F"]) {
+					// 	yaw = 5;
+					// } else if (keys["H"]) {
+					// 	yaw = -5;
+					// }
+					// if (keys["T"]) {
+	
+					// 	forward = -20;
+					// } else if (keys["G"]) {
+	
+					// 	forward = 20;
+					// }
+	
+					$("#gameTime").text(Math.floor(thisGame.getTime()) + " segundos");
+	
+					if(thisGame.getDifficulty()>1)
+						$("#gameLife").text("Vida: "+thisGame.checkHealth());
+					$("#gameActualScore").text("Puntaje: "+thisGame.checkScore());
+
+					if(thisGame.getDifficulty()<4)
+					{
+						if(!isTimeRandomized)
+						{
+							randomizeWaitTime(1, 3);
+						}
+						
+						if(timeRandomized<0)
+						{
+							readyToOpenDoor=true;
+						}
+						else
+						{
+							timeRandomized-=deltaTime;
+						}
+
+						if(readyToOpenDoor)
+						{
+							randomizeDoor();
+						}
+						emmitParticles();
+
+					}
+	
+					openingDoors();
+					openedDoors();
+					closingDoors();
+					ghostsFloat();
+					throwObject();
+					
+	
+					var infoShield=thisGame.getShieldInfo();
+					if(infoShield.gettingUp)
+					{
+						puttingShieldUp();
+					}
+	
+					if(infoShield.isUp)
+					{
+						thisGame.subtractTimeShield(deltaTime);
+					}
+	
+					if(infoShield.gettingDown)
+					{
+						puttingShieldDown();
+					}
+	
+					var player1Index=thisGame.getPlayerPosition(1);
+	
+					if(!thisGame.isPlayerStill(1)){
+						movePlayer(1, player1Index, deltaTime);
+					}
+					else
+					{
+						playerSawGhost(thisGame.getPlayerPosition(1));
+					}
+	
+					if(thisGame.getDifficulty()==4)
+					{
+						var player2Index=thisGame.getPlayerPosition(2);
+						if(!thisGame.isPlayerStill(2)){
+							movePlayer(2, player2Index, deltaTime);
+						}
+					}
+					
+	
+					
+					
+					// camera.rotation.y += yaw * deltaTime;
+					// camera.translateZ(forward * deltaTime);
+					// camera.position.y+=up;
+				}
+			}
+			
+		}
+		
+
+		if(pauseGame)
+		{
+			if($("#gameScene").is(":visible")){
+				loadPause();
+				$("#gameScene").hide();
+			}
+		}
+		else if(!pauseGame)
+		{
+			if(! $("#gameScene").is(":visible")){
+				$("#gameScene").show();
+				$("#pauseMenu").remove();
+			}
+		}
+		
+		if(!gameFinished)
+		{
+			renderer.render(scene, camera);
+		}
+		else
+		{
+			removeGame();
+			prepCheckNewScore(thisGame.checkScore());
+			
+		}	
+	}
+
+	function showResultScreen(){
+		var textResult ="";
+		if(thisGame.checkHealth()>0)
+		{
+			if(thisGame.getDifficulty()==4)			
+				textResult="¡El jugador 1 ha sobrevivido! Pierde el jugador 2";
+			else
+				textResult="¡Has sobrevivido la noche!";
+		}
+		else
+		{
+			if(thisGame.getDifficulty()==4)			
+				textResult="¡El jugador 2 derrotó al jugador 1! Pierde el jugador 1";
+			else
+				textResult="No lograste sobrevivir la noche";
+		}
+
+		return textResult;
+	}
+
+	function removeGame()
+	{
+		for(var i=doors.length-1; i>=0; i--)
+		{
+			doorPivot[i].remove(doors[i]);
+			rooms[i].remove(doorPivot[i]);
+			scene.remove(doorPivot[i]);
+			doors.pop();
+			doorPivot.pop();
+		}
+
+		for(var i=toilets.length-1; i>=0; i--)
+		{
+			rooms[i].remove(toilets[i]);
+			scene.remove(toilets[i]);
+			toilets.pop();
+		}
+
+		for(var i=rooms.length-1; i>=0; i--)
+		{
+			scene.remove(rooms[i]);
+			rooms.pop();
+		}
+
+		for(var i=normalGhostArray.length-1; i>=0; i--)
+		{
+			if(normalGhostArray[i]!=null)
+			{
+				scene.remove(normalGhostArray[i]);
+				normalGhostArray[i]=null;
+			}
+		}
+
+		for(var i=objectsToThrow.length-1; i>=0; i--)
+		{
+			if(objectsToThrow[i]!=null)
+			{
+				scene.remove(objectsToThrow[i]);
+				objectsToThrow[i]=null;
+			}
+		}
+
+		scene.remove(spotLight);
+		scene.remove(playerFrame1);
+		scene.remove(shieldBase);
+		scene.remove(groundBase);
+
+
+		for(var i=snowGeo.vertices.length-1; i>=0; i--)
+		{
+			
+			scene.remove(snowGeo.vertices[i]);
+			snowGeo.vertices.pop();
+		}
+		scene.remove(snowGeo);
+		scene.remove(snow);
+
+		snowGeo=null;
+		snow=null;
+
+		if(thisGame.getDifficulty()==4){
+			scene.remove(spotLight2);
+			scene.remove(playerFrame2);
+		}
+
+		cancelAnimationFrame(idFrame);
+		scene = null;
+		camera = null;
+		renderer=null;
+
+		isLoaded=false;
+ 		pauseGame=false;
+ 		lastState=false;
+ 		gameFinished=false;
+
+		isWorldReady = [ 
+			false, false, false, false, 
+			false, false, false, false, 
+			false, false, false, false];
+
+		shieldInitialPosition=null;
+		shieldDesiredPosition=null;
+
+
+		console.log("Objetos eliminados");
+	}
+
+	function setupScene() {
+		$("#scene-section").css("padding", "0px");	
+		var visibleSize = { width: 1000, height: 800};
+		//1250 * 1000
+		var viewSize=900;
+		var aspectRatio=visibleSize.width/visibleSize.height;
+		clock = new THREE.Clock();		
+		scene = new THREE.Scene();
+		camera = new THREE.PerspectiveCamera(75, visibleSize.width / visibleSize.height, 0.1, 100);
+		camera.position.z = 50;
+		camera.position.y = 5;
+		//Load background texture
+		var loader = new THREE.TextureLoader();
+		loader.load('./assets/imgs/levelBack.jpg' , function(texture)
+		            {
+		             scene.background = texture;  
+		            });
+
+		renderer = new THREE.WebGLRenderer( {precision: "mediump" } );
+		renderer.setClearColor(new THREE.Color(0.1, 0.1, 0.4));
+		renderer.setPixelRatio(visibleSize.width / visibleSize.height);
+		renderer.setSize(visibleSize.width, visibleSize.height);
+
+		var ambientLight = new THREE.AmbientLight(new THREE.Color(1, 1, 1), 0.4);
+		scene.add(ambientLight);
+
+		spotLight = new THREE.SpotLight( 0xffffff, 1 );					
+		spotLight.position.set(camera.position.x, camera.position.y, camera.position.z);
+
+		spotLight.angle = THREE.Math.degToRad(15);
+		spotLight.penumbra = 0.1;
+		spotLight.decay = 2;
+		spotLight.distance = 200;
+		spotLight.castShadow = true;
+
+		scene.add(spotLight);
+		scene.add(spotLight.target);
+
+		if(thisGame.getDifficulty()==4)
+		{
+			spotLight2 = new THREE.SpotLight( 0xffffff, 1 );					
+			spotLight2.position.set(camera.position.x, camera.position.y, camera.position.z);
+	
+			spotLight2.angle = THREE.Math.degToRad(15);
+			spotLight2.penumbra = 0.1;
+			spotLight2.decay = 2;
+			spotLight2.distance = 200;
+			spotLight2.castShadow = true;
+	
+			scene.add(spotLight2);
+			scene.add(spotLight2.target);
+		}
+
+		
+
+
+		renderer.shadowMap.enabled=true;
+		renderer.shadowMap.type=THREE.BasicShadowMap;
+
+		var addScene="<div id='gameScene'><div class='row'><div class='col-4'><h1 id='gameTime'>Tiempo: 60</h1></div><div class='col-4'>";
+		if(thisGame.getDifficulty()>1)
+			addScene+="<h1 id='gameLife'>Vida: 3</h1>";
+		addScene+="</div><div class='col-4'><h1 id='gameActualScore'>Puntaje: 0</h1></div></div></div>";
+		$("#scene-section").append(addScene);
+		$("#gameScene").append(renderer.domElement);
+	}
+
+	</script>
+</head>
+
+<body>
+
+	<div class="container">
+		 <div class="row">
+		 	<div class="col-12">
+		 		<h1 id="main-title">Spooky Bathrooms!</h1>
+		 	</div>
+		 </div>
+		<div class="row">
+			<div class="col-12">
+				<div id="scene-section">
+	
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<footer class="page-footer font-small teal pt-4">
+		<div class="container-fluid text-center text-md-center">
+          <div class="row">   
+          	<div class="col-12">   
+            	<p>Gráficas Computacionales Web, grupo 03</p>
+          	</div>
+          </div>
+        </div>
+        <div class="footer-copyright text-center py-3">
+            <p>Desarrollado por Lauro Llano Serna</p>
+        </div>
+	</footer>
+
+</body>
+</html>
